@@ -143,3 +143,7 @@ Cleanup + audit: P-2026-05-10-020.
 ## [2026-05-13] tidy | 3 note(s): 1 new entry(s), 1 updated, 1 proposal(s), 0 discarded, 0 failed
 
 Processed inbox: 1 learning(s), 0 reference(s), 1 proposal(s), 0 discarded, 0 failed.
+
+## [2026-05-18] tidy | 1 note(s): 0 new entry(s), 0 updated, 1 proposal(s), 0 discarded, 0 failed
+
+Processed inbox: 0 learning(s), 0 reference(s), 1 proposal(s), 0 discarded, 0 failed.
