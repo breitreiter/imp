@@ -8,3 +8,4 @@ appsettings.local.json
 *.user
 imp.imp-proposals/
 .imp/
+imp/reviews/
