@@ -33,7 +33,12 @@ public sealed record ModeDefinition(
     IReadOnlySet<ToolReach> AllowedReach,
     IReadOnlyList<string> ToolNames,
     string SystemPromptFileName,
-    Func<ResearchState, AIFunction> FinishToolFactory);
+    Func<ResearchState, AIFunction> FinishToolFactory,
+    // Code-side default for which ChatProviders[] entry this mode should run
+    // against. Null = use ActiveProvider. Overridable per-run via the config
+    // key Modes:<name>:Provider, and (on the CLI) via `--provider <name>`.
+    // Resolution priority: CLI flag > Modes:<name>:Provider > PreferredProvider > ActiveProvider.
+    string? PreferredProvider = null);
 
 public static class Modes
 {
@@ -49,6 +54,9 @@ public static class Modes
             if (_initialized) return;
             Register(BuildFsMode());
             Register(BuildWikiMode());
+            Register(BuildReviewMode("review-bug", "review-bug.md"));
+            Register(BuildReviewMode("review-simplify-comments", "review-simplify-comments.md"));
+            Register(BuildReviewMode("review-untested", "review-untested.md"));
             _initialized = true;
         }
     }
@@ -100,5 +108,22 @@ public static class Modes
         AllowedReach: new HashSet<ToolReach> { ToolReach.None, ToolReach.LocalFsRead },
         ToolNames: new[] { "read_file", "grep", "list_dir" },
         SystemPromptFileName: "research-fs-wiki.md",
+        FinishToolFactory: ResearchTools.BuildFinishResearchTool);
+
+    // Review-axis variants of fs. Identical sandbox + tools + finish-tool;
+    // differ only in system prompt. The orchestrator (Review/ReviewOrchestrator.cs)
+    // dispatches one ResearchRunner call per (file, axis) pair using one of these
+    // modes. PreferredProvider intentionally null — review is qwen-shaped (cheap,
+    // sequential, noisy-but-cheap-to-verify) but users configure via
+    // Modes:<name>:Provider rather than baking it in.
+    static ModeDefinition BuildReviewMode(string name, string promptFile) => new(
+        Name: name,
+        Sandbox: new SandboxProfile(
+            AllowNetwork: false,
+            RepoMount: MountPolicy.ReadOnly,
+            AllowSubprocess: false),
+        AllowedReach: new HashSet<ToolReach> { ToolReach.None, ToolReach.LocalFsRead },
+        ToolNames: new[] { "read_file", "grep", "list_dir" },
+        SystemPromptFileName: promptFile,
         FinishToolFactory: ResearchTools.BuildFinishResearchTool);
 }

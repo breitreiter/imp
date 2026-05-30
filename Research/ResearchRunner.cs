@@ -36,12 +36,12 @@ public static class ResearchRunner
     // as a repo, parses the descriptor, and delegates to the in-memory
     // overload below.
     public static async Task<string> RunAsync(
-        IChatClient chat,
         IConfiguration config,
         string modeName,
         string? freeTextQuestion,
         string? briefPath,
-        bool keepArchive = false)
+        bool keepArchive = false,
+        string? providerOverride = null)
     {
         ImpLog.Info($"research: start mode={modeName} brief={briefPath ?? "<free-text>"} cwd={Directory.GetCurrentDirectory()}");
 
@@ -61,7 +61,7 @@ public static class ResearchRunner
             return SerializeError(modeName, "brief-parse", ex.Message);
         }
 
-        return await RunAsync(chat, config, modeName, descriptor, repoRoot, keepArchive: keepArchive);
+        return await RunAsync(config, modeName, descriptor, repoRoot, keepArchive: keepArchive, providerOverride: providerOverride);
     }
 
     // In-memory entry: caller has already constructed a descriptor and
@@ -72,13 +72,13 @@ public static class ResearchRunner
     // ad-hoc `Research:ToolBudget`; null falls back to the Research budget
     // so existing CLI behaviour is unchanged.
     public static async Task<string> RunAsync(
-        IChatClient chat,
         IConfiguration config,
         string modeName,
         TaskDescriptor descriptor,
         string repoRoot,
         int? toolBudgetOverride = null,
-        bool keepArchive = true)
+        bool keepArchive = true,
+        string? providerOverride = null)
     {
         ModeDefinition mode;
         try
@@ -94,7 +94,21 @@ public static class ResearchRunner
         Directory.CreateDirectory(archiveDir);
         ResearchArchive.WriteBrief(archiveDir, descriptor);
 
-        var providerName = config["ActiveProvider"];
+        var providerName = ResolveProviderName(config, mode, providerOverride);
+        if (string.IsNullOrEmpty(providerName))
+            return SerializeError(modeName, "provider-resolve",
+                "No provider configured. Set ActiveProvider, Modes:<name>:Provider, or pass --provider.");
+
+        IChatClient chat;
+        try
+        {
+            chat = Providers.CreateForProvider(config, providerName);
+        }
+        catch (Exception ex)
+        {
+            return SerializeError(modeName, "provider-construct", ex.Message);
+        }
+
         var providerSection = ResolveProviderSection(config, providerName);
         var modelName = providerSection?["Model"];
         var maxOutputTokens = ParseInt(providerSection, "MaxOutputTokens") ?? ResearchExecutor.DefaultMaxOutputTokens;
@@ -159,6 +173,29 @@ public static class ResearchRunner
         if (string.IsNullOrEmpty(activeProvider)) return null;
         return config.GetSection("ChatProviders").GetChildren()
             .FirstOrDefault(p => string.Equals(p["Name"], activeProvider, StringComparison.OrdinalIgnoreCase));
+    }
+
+    // Resolution priority for which ChatProviders[] entry to run a research
+    // mode against:
+    //   1. CLI override (`--provider <name>`).
+    //   2. Per-mode config key `Modes:<name>:Provider`.
+    //   3. Code-side ModeDefinition.PreferredProvider.
+    //   4. `Wiki:Provider` for the deprecated wiki mode only (back-compat;
+    //      dies with the wiki mode per plans/wiki-deprecation.md).
+    //   5. Global `ActiveProvider`.
+    // Returns null only if nothing is set at any layer.
+    static string? ResolveProviderName(IConfiguration config, ModeDefinition mode, string? providerOverride)
+    {
+        if (!string.IsNullOrEmpty(providerOverride)) return providerOverride;
+        var modeKey = config[$"Modes:{mode.Name}:Provider"];
+        if (!string.IsNullOrEmpty(modeKey)) return modeKey;
+        if (!string.IsNullOrEmpty(mode.PreferredProvider)) return mode.PreferredProvider;
+        if (string.Equals(mode.Name, "wiki", StringComparison.OrdinalIgnoreCase))
+        {
+            var legacy = config["Wiki:Provider"];
+            if (!string.IsNullOrEmpty(legacy)) return legacy;
+        }
+        return config["ActiveProvider"];
     }
 
     static int? ParseInt(IConfiguration? section, string key)

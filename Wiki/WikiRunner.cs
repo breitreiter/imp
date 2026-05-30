@@ -372,7 +372,6 @@ public static class WikiRunner
         try
         {
             envelope = await ResearchRunner.RunAsync(
-                chat: chat,
                 config: config,
                 modeName: "wiki",
                 descriptor: descriptor,

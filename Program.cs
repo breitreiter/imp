@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 
 using Imp.Build;
 using Imp.Research;
+using Imp.Review;
 using Imp.Substrate;
 using Imp.Wiki;
 using Imp.Infrastructure;
@@ -59,7 +60,7 @@ public class Program
             "wiki-index-test" => RunWikiIndexTest(args[1..]),
             "wiki-split-test" => await RunWikiSplitTest(args[1..]),
             "validate" => await RunValidate(args[1..]),
-            "review" => RunReview(args[1..]),
+            "review" => await RunReviewDispatch(args[1..]),
             "list" => RunList(),
             "show" => RunShow(args[1..]),
             "log" => RunLog(args[1..]),
@@ -109,6 +110,12 @@ Lifecycle:
   validate <contract-path>           Dry-run: parse + structural check, no model call.
   review <task-id>                   Bundled post-build view: proof-of-work + git diff.
                                      The canonical "what to do after a build" command.
+  review [--since|--since-last]      Nightly code-review sweep over a window of main.
+    [--max-runs N] [--dry-run]       Runs Roslyn pre-pass, then per-file bug-scan +
+                                     simplify-comments axes via qwen, plus a single
+                                     cross-cutting untested-additions pass. Writes a
+                                     two-zone report to imp/reviews/<date>.md.
+                                     --dry-run prints the axis plan without dispatch.
 
 Substrate:
   init [path] [--force]              Scaffold the substrate layout into the
@@ -227,15 +234,14 @@ build / validate / list / show / log / review.
         // Accepted forms:
         //   imp research --mode=fs "question"
         //   imp research --mode=fs --brief contracts/R-007.md
-        //   imp research --mode=fs --brief contracts/R-007.md gpt-mini
-        // Trailing positional arg, if not consumed by --brief, is the question
-        // (free-text). A trailing arg AFTER all flags is treated as a provider
-        // override only if --brief was used and it doesn't look like a path
-        // — keep it simple: provider override always comes via env / config
-        // for v1, not as a positional.
+        //   imp research --mode=fs --provider Qwen "question"
+        // Provider resolution (handled in ResearchRunner): --provider flag
+        // beats `Modes:<name>:Provider` beats the mode's code-side
+        // PreferredProvider beats ActiveProvider.
         string? mode = null;
         string? briefPath = null;
         string? question = null;
+        string? providerOverride = null;
         bool keepArchive = false;
 
         for (int i = 0; i < args.Length; i++)
@@ -249,6 +255,10 @@ build / validate / list / show / log / review.
                 briefPath = a["--brief=".Length..];
             else if (a == "--brief" && i + 1 < args.Length)
                 briefPath = args[++i];
+            else if (a.StartsWith("--provider=", StringComparison.Ordinal))
+                providerOverride = a["--provider=".Length..];
+            else if (a == "--provider" && i + 1 < args.Length)
+                providerOverride = args[++i];
             else if (a is "--archive" or "-a")
                 keepArchive = true;
             else if (question is null)
@@ -259,22 +269,21 @@ build / validate / list / show / log / review.
 
         if (string.IsNullOrEmpty(mode))
         {
-            Console.Error.WriteLine("Usage: imp research --mode=<name> \"question\" [--brief path]");
+            Console.Error.WriteLine("Usage: imp research --mode=<name> \"question\" [--brief path] [--provider name]");
             Console.Error.WriteLine($"       known modes: {string.Join(", ", Modes.KnownNames())}");
             return 1;
         }
         if (string.IsNullOrEmpty(briefPath) && string.IsNullOrEmpty(question))
         {
-            Console.Error.WriteLine("Usage: imp research --mode=<name> \"question\" [--brief path]");
+            Console.Error.WriteLine("Usage: imp research --mode=<name> \"question\" [--brief path] [--provider name]");
             Console.Error.WriteLine("       supply either a free-text question or --brief <path>");
             return 1;
         }
 
         var config = BuildConfiguration();
-        var chat = Providers.Create(config);
 
-        Console.Error.WriteLine($"[imp] research start: mode={mode} brief={briefPath ?? "<free-text>"} provider={config["ActiveProvider"]} cwd={Directory.GetCurrentDirectory()}");
-        var json = await ResearchRunner.RunAsync(chat, config, mode, question, briefPath, keepArchive);
+        Console.Error.WriteLine($"[imp] research start: mode={mode} brief={briefPath ?? "<free-text>"} provider={providerOverride ?? config[$"Modes:{mode}:Provider"] ?? config["ActiveProvider"]} cwd={Directory.GetCurrentDirectory()}");
+        var json = await ResearchRunner.RunAsync(config, mode, question, briefPath, keepArchive, providerOverride);
         Console.WriteLine(json);
         return 0;
     }
@@ -575,6 +584,59 @@ build / validate / list / show / log / review.
         var bundle = LifecycleCommands.Review(args[0]);
         Console.Write(bundle);
         if (!bundle.EndsWith('\n')) Console.WriteLine();
+        return 0;
+    }
+
+    // Dispatches between the existing build-bundle `imp review <task-id>` and
+    // the new nightly `imp review [--since|--since-last|--max-runs|--dry-run]`
+    // by looking for flags: a single positional argument that doesn't start
+    // with `--` is the legacy task-id path; anything else is the new review.
+    static async Task<int> RunReviewDispatch(string[] args)
+    {
+        bool hasFlags = args.Any(a => a.StartsWith("--", StringComparison.Ordinal));
+        bool looksLikeTaskId = args.Length >= 1 && !args[0].StartsWith("--", StringComparison.Ordinal);
+        if (!hasFlags && looksLikeTaskId)
+            return RunReview(args);
+        return await RunNightlyReview(args);
+    }
+
+    static async Task<int> RunNightlyReview(string[] args)
+    {
+        string? since = null;
+        bool sinceLast = false;
+        int? maxRuns = null;
+        bool dryRun = false;
+
+        for (int i = 0; i < args.Length; i++)
+        {
+            var a = args[i];
+            if (a.StartsWith("--since=", StringComparison.Ordinal)) since = a["--since=".Length..];
+            else if (a == "--since" && i + 1 < args.Length) since = args[++i];
+            else if (a == "--since-last") sinceLast = true;
+            else if (a.StartsWith("--max-runs=", StringComparison.Ordinal)) maxRuns = int.Parse(a["--max-runs=".Length..]);
+            else if (a == "--max-runs" && i + 1 < args.Length) maxRuns = int.Parse(args[++i]);
+            else if (a == "--dry-run") dryRun = true;
+            else
+            {
+                Console.Error.WriteLine($"imp review: unknown flag '{a}'");
+                return 1;
+            }
+        }
+
+        var cwd = Directory.GetCurrentDirectory();
+        var repoRoot = FindRepoRoot(cwd);
+        if (repoRoot is null)
+        {
+            Console.Error.WriteLine($"imp review: not in a git repo: {cwd}");
+            return 1;
+        }
+
+        var config = BuildConfiguration();
+        var opts = new ReviewOptions(since, sinceLast, maxRuns, dryRun);
+        var outcome = await ReviewOrchestrator.RunAsync(config, repoRoot, opts);
+        if (outcome is null) return 0; // dry-run printed and exited
+        Console.WriteLine($"wrote {outcome.ReportPath}");
+        Console.WriteLine($"qwen runs: {outcome.QwenRunCount}, skipped: {outcome.SkippedRunCount}, watermark advanced: {outcome.WatermarkAdvanced}");
         return 0;
     }
 

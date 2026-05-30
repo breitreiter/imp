@@ -68,6 +68,47 @@ public static class ResearchTools
                 Quote enough text that the citation stands on its own.
                 """);
 
+    // Finish-tool for the review-confidence pass. Different shape from
+    // finish_research: a single 0..100 score plus a one-sentence
+    // justification, captured into a per-run state record. Bypasses the
+    // ResearchState/ResearchReport machinery because the output is
+    // internal-only — never reaches the review report — and the schema is
+    // small enough that bolting it onto finish_research would mean stuffing
+    // meaningless required fields.
+    //
+    // Lives in ResearchTools.cs (not Review/) per plans/review-mode.md so
+    // that all finish-tool factories cluster together regardless of which
+    // domain consumes them.
+    public sealed class ConfidenceState
+    {
+        public int? Score { get; set; }
+        public string Justification { get; set; } = "";
+    }
+
+    public static AIFunction BuildFinishConfidenceTool(ConfidenceState state) =>
+        AIFunctionFactory.Create(
+            (
+                [Description("Confidence score from 0 to 100 per the rubric in the system prompt.")] int score,
+                [Description("One sentence justifying the score. Mechanical, no hedging.")] string justification) =>
+            {
+                if (score < 0 || score > 100)
+                    return $"ERROR: score {score} out of range [0,100]; call again with a valid score.";
+                state.Score = score;
+                state.Justification = justification ?? "";
+                return $"Recorded confidence {score}.";
+            },
+            name: "finish_confidence",
+            description: """
+                Record the confidence score for this finding and terminate. Call exactly once.
+
+                The score is an integer in [0, 100] per the rubric in the system prompt:
+                  0 = false positive or pre-existing; 25 = couldn't verify;
+                  50 = real but nitpicky; 75 = real and likely hit in practice;
+                  100 = definitely real, citation directly confirms.
+
+                The justification is one sentence — kept for trace.jsonl, not shown to the parent.
+                """);
+
     static string? Validate(FinishResearchInput input)
     {
         if (input.Findings is null || input.Findings.Count == 0)
