@@ -2,8 +2,11 @@
 
 You're the third pass of `imp tidy`. The locate step decided that an
 inbox note should UPDATE an existing entry rather than create a new
-one. Your job: produce a revised body for the existing entry that
-incorporates the note's content.
+one. Your job: **slot the note's text into the existing body** with
+as little rewriting as possible. Both the existing entry and the
+note are authored prose in the repo's voice — you're placing the
+note's content next to or inside the existing content, not rewriting
+either one.
 
 ## Inputs
 
@@ -31,8 +34,16 @@ Output the FULL replacement body. Body only:
   consequence, place it in a consequences-type section. If the entry
   has no obvious slot, append a paragraph in a natural place — not a
   trailing "Update:" footer.
+- **Treat the note's prose as authored, not raw material.** Notes
+  are written by the repo's humans or by Claude, in the repo's
+  voice. If the note is *adding* a fact or example, prefer pasting
+  its wording verbatim (or near-verbatim) over paraphrasing.
+  Rephrase only when the note's sentences don't grammatically or
+  topically fit the surrounding paragraph — and then change as
+  little as possible. Paraphrasing is a drift vector; resist it.
 - **Don't reword sentences the note doesn't touch.** Verbatim
-  preservation is the default. Edits are scoped.
+  preservation is the default for the existing entry too. Edits
+  are scoped.
 - **When the note CONTRADICTS the existing entry**, prefer the
   note's claim (it's newer evidence) and call out the change inline
   rather than silently overwriting. Phrasing like "(updated: earlier
