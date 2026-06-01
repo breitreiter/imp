@@ -1,13 +1,13 @@
-namespace Imp.Review;
+namespace Imp.Health;
 
-// Persists the last fully-reviewed commit SHA at imp/_meta/review-watermark.
+// Persists the last fully-reviewed commit SHA at imp/_meta/health-watermark.
 // One line, no frontmatter — this is a marker, not a substrate entry.
 // "--since-last" reads it; orchestrator advances it only on full completion
 // (see plans/review-mode.md, step 10 of orchestrator pipeline).
 
 public static class Watermark
 {
-    public const string RelativePath = "imp/_meta/review-watermark";
+    public const string RelativePath = "imp/_meta/health-watermark";
 
     public static string PathFor(string repoRoot) =>
         Path.Combine(repoRoot, RelativePath);

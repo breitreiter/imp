@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Text.RegularExpressions;
 using Imp.Infrastructure;
 
-namespace Imp.Review;
+namespace Imp.Health;
 
 // Mechanical-analysis pre-pass that runs before any qwen invocation. Output
 // serves two roles:
@@ -34,7 +34,7 @@ public sealed record PrePassResult(
 
 public static class PrePass
 {
-    public static PrePassResult Run(string repoRoot, ReviewWindow window)
+    public static PrePassResult Run(string repoRoot, HealthWindow window)
     {
         var worktreePath = CreateDetachedWorktree(repoRoot, window.HeadSha);
         var diagnostics = new List<Diagnostic>();
@@ -82,7 +82,7 @@ public static class PrePass
 
     static string CreateDetachedWorktree(string repoRoot, string sha)
     {
-        var name = $"imp-review-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..6]}";
+        var name = $"imp-health-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..6]}";
         var path = Path.Combine(Path.GetTempPath(), name);
         var r = GitCommand.Run(repoRoot, "worktree", "add", "--detach", path, sha);
         if (!r.Ok)

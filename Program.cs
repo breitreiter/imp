@@ -3,7 +3,7 @@ using Microsoft.Extensions.Configuration;
 
 using Imp.Build;
 using Imp.Research;
-using Imp.Review;
+using Imp.Health;
 using Imp.Substrate;
 using Imp.Wiki;
 using Imp.Infrastructure;
@@ -60,7 +60,8 @@ public class Program
             "wiki-index-test" => RunWikiIndexTest(args[1..]),
             "wiki-split-test" => await RunWikiSplitTest(args[1..]),
             "validate" => await RunValidate(args[1..]),
-            "review" => await RunReviewDispatch(args[1..]),
+            "review" => RunReview(args[1..]),
+            "health" => await RunHealth(args[1..]),
             "list" => RunList(),
             "show" => RunShow(args[1..]),
             "log" => RunLog(args[1..]),
@@ -110,11 +111,11 @@ Lifecycle:
   validate <contract-path>           Dry-run: parse + structural check, no model call.
   review <task-id>                   Bundled post-build view: proof-of-work + git diff.
                                      The canonical "what to do after a build" command.
-  review [--since|--since-last]      Nightly code-review sweep over a window of main.
+  health [--since|--since-last]      Nightly code-review sweep over a window of main.
     [--max-runs N] [--dry-run]       Runs Roslyn pre-pass, then per-file bug-scan +
                                      simplify-comments axes via qwen, plus a single
                                      cross-cutting untested-additions pass. Writes a
-                                     two-zone report to imp/reviews/<date>.md.
+                                     two-zone report to imp/health/<date>.md.
                                      --dry-run prints the axis plan without dispatch.
 
 Substrate:
@@ -581,26 +582,20 @@ build / validate / list / show / log / review.
             Console.Error.WriteLine("Usage: imp review <task-id>");
             return 1;
         }
+        if (args[0].StartsWith("--", StringComparison.Ordinal))
+        {
+            Console.Error.WriteLine("imp review: the nightly sweep moved to `imp health`. Run `imp health --since-last`.");
+            return 1;
+        }
         var bundle = LifecycleCommands.Review(args[0]);
         Console.Write(bundle);
         if (!bundle.EndsWith('\n')) Console.WriteLine();
         return 0;
     }
 
-    // Dispatches between the existing build-bundle `imp review <task-id>` and
-    // the new nightly `imp review [--since|--since-last|--max-runs|--dry-run]`
-    // by looking for flags: a single positional argument that doesn't start
-    // with `--` is the legacy task-id path; anything else is the new review.
-    static async Task<int> RunReviewDispatch(string[] args)
-    {
-        bool hasFlags = args.Any(a => a.StartsWith("--", StringComparison.Ordinal));
-        bool looksLikeTaskId = args.Length >= 1 && !args[0].StartsWith("--", StringComparison.Ordinal);
-        if (!hasFlags && looksLikeTaskId)
-            return RunReview(args);
-        return await RunNightlyReview(args);
-    }
-
-    static async Task<int> RunNightlyReview(string[] args)
+    // The nightly code-review sweep, `imp health`. The build-bundle `imp review
+    // <task-id>` is a separate command (RunReview). See plans/review-mode.md.
+    static async Task<int> RunHealth(string[] args)
     {
         string? since = null;
         bool sinceLast = false;
@@ -618,7 +613,7 @@ build / validate / list / show / log / review.
             else if (a == "--dry-run") dryRun = true;
             else
             {
-                Console.Error.WriteLine($"imp review: unknown flag '{a}'");
+                Console.Error.WriteLine($"imp health: unknown flag '{a}'");
                 return 1;
             }
         }
@@ -627,13 +622,13 @@ build / validate / list / show / log / review.
         var repoRoot = FindRepoRoot(cwd);
         if (repoRoot is null)
         {
-            Console.Error.WriteLine($"imp review: not in a git repo: {cwd}");
+            Console.Error.WriteLine($"imp health: not in a git repo: {cwd}");
             return 1;
         }
 
         var config = BuildConfiguration();
-        var opts = new ReviewOptions(since, sinceLast, maxRuns, dryRun);
-        var outcome = await ReviewOrchestrator.RunAsync(config, repoRoot, opts);
+        var opts = new HealthOptions(since, sinceLast, maxRuns, dryRun);
+        var outcome = await HealthOrchestrator.RunAsync(config, repoRoot, opts);
         if (outcome is null) return 0; // dry-run printed and exited
         Console.WriteLine($"wrote {outcome.ReportPath}");
         Console.WriteLine($"qwen runs: {outcome.QwenRunCount}, skipped: {outcome.SkippedRunCount}, watermark advanced: {outcome.WatermarkAdvanced}");

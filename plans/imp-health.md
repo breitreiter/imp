@@ -11,6 +11,12 @@ provenance:
 
 # imp health — codebase vibe check from CI output
 
+> **Name collision (2026-05-30):** the `imp health` command name is now
+> taken by the shipped nightly code-review sweep (renamed from `imp review
+> [--since]`; see plans/review-mode.md). This plan — a CI-output vibe check —
+> is unbuilt and would need a different verb (e.g. `imp pulse`) or to be
+> folded into the sweep's report. Kept as a distinct idea for now.
+
 Outcome: not started — feature idea captured 2026-05-10, no code
 yet, open questions still unresolved on scheduling, output target,
 tidy-integration, and provider choice.

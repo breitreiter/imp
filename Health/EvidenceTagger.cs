@@ -1,6 +1,6 @@
 using Imp.Research;
 
-namespace Imp.Review;
+namespace Imp.Health;
 
 // Composes evidence tags per qwen finding and assigns each to a report zone
 // (verdict / corroborated-lead / single-source). See "Evidence tags" in

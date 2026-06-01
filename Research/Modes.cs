@@ -111,7 +111,7 @@ public static class Modes
         FinishToolFactory: ResearchTools.BuildFinishResearchTool);
 
     // Review-axis variants of fs. Identical sandbox + tools + finish-tool;
-    // differ only in system prompt. The orchestrator (Review/ReviewOrchestrator.cs)
+    // differ only in system prompt. The orchestrator (Health/HealthOrchestrator.cs)
     // dispatches one ResearchRunner call per (file, axis) pair using one of these
     // modes. PreferredProvider intentionally null — review is qwen-shaped (cheap,
     // sequential, noisy-but-cheap-to-verify) but users configure via

@@ -1,12 +1,12 @@
 using System.Diagnostics;
 
-namespace Imp.Review;
+namespace Imp.Health;
 
 // Thin wrapper around `git` for review-mode operations. Mirrors the shape of
 // Build/Worktree.cs's helpers (concurrent stdout/stderr drain, hard timeout)
 // but exposes only the ops review needs: ref resolution, log --name-only with
 // --numstat, log -p for a single path, file content at SHA, worktree add/
-// remove. Kept local to Review/ so we don't accrete review concerns into
+// remove. Kept local to Health/ so we don't accrete review concerns into
 // Build/Worktree.cs (separate domain, see CLAUDE.md layout).
 
 public static class GitCommand

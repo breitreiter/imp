@@ -1,9 +1,9 @@
 using System.Text;
 using Imp.Research;
 
-namespace Imp.Review;
+namespace Imp.Health;
 
-// Renders the two-zone markdown report at imp/reviews/<date>.md.
+// Renders the two-zone markdown report at imp/health/<date>.md.
 // Layout follows the "Report shape" section in plans/review-mode.md.
 //
 // Engagement-instruction BLUF, mechanical zone assignment from
@@ -12,7 +12,7 @@ namespace Imp.Review;
 
 public sealed record ReportInputs(
     DateTimeOffset GeneratedAt,
-    ReviewWindow Window,
+    HealthWindow Window,
     int CommitsInWindow,
     int FilesTouched,
     int QwenRunCount,
@@ -29,7 +29,7 @@ public static class ReportWriter
     {
         var sb = new StringBuilder();
         var date = r.GeneratedAt.UtcDateTime.ToString("yyyy-MM-dd");
-        sb.AppendLine($"# Review — {date}");
+        sb.AppendLine($"# Health — {date}");
         sb.AppendLine($"Window: {r.Window.Description}");
         sb.AppendLine($"{r.CommitsInWindow} commits, {r.FilesTouched} files, {r.QwenRunCount} qwen runs, {r.SkippedRunCount} skipped, {r.DroppedByConfidence} dropped by confidence filter.");
         if (r.Window.WarningMessage is not null)

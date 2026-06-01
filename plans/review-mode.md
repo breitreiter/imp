@@ -1,20 +1,20 @@
 ---
 kind: plan
-title: Nightly review mode (imp review)
+title: Nightly review mode (imp health)
 state: ready
 created: 2026-05-28
 updated: 2026-05-30
 touches:
   features:
-    - imp review (new subcommand)
+    - imp health (new subcommand)
     - Research/Modes.cs (new review-* modes)
-    - imp/reviews/ (new report destination)
+    - imp/health/ (new report destination)
 ---
 
 # Nightly review mode
 
 A nightly sniff-test over a day's worth of commits on `main`,
-producing a single BLUF-style report at `imp/reviews/<date>.md`.
+producing a single BLUF-style report at `imp/health/<date>.md`.
 Loosely modeled on Cursor's thermo-nuclear code-quality review skill,
 but adapted for our shape: no PR boundary, sequential qwen executor,
 strict per-run context budget, and many small checks instead of one
@@ -40,12 +40,12 @@ Non-goals: replacing linters; gating commits; auto-applying fixes.
 
 ## Cadence and trigger
 
-- New subcommand: `imp review [--since 24h | --since-last]`.
+- New subcommand: `imp health [--since 24h | --since-last]`.
 - Persists a watermark at `imp/_meta/review-watermark` (last reviewed
   commit SHA) so reruns are idempotent.
 - Nightly trigger via systemd timer or the `/schedule` skill running
-  `imp review --since-last`.
-- Output: `imp/reviews/<YYYY-MM-DD>.md`, gnome-authored, no proposal
+  `imp health --since-last`.
+- Output: `imp/health/<YYYY-MM-DD>.md`, gnome-authored, no proposal
   flow (reports are reference, not edits to human-owned dirs).
 
 ## Unit of work
@@ -156,7 +156,7 @@ Strix Halo runs one qwen invocation at a time. Budget thinking:
 
 ## Report shape
 
-`imp/reviews/<YYYY-MM-DD>.md`. Two physical zones — *verdicts* and
+`imp/health/<YYYY-MM-DD>.md`. Two physical zones — *verdicts* and
 *leads* — so the parent model can engage with each at the correct
 register without having to infer it from per-finding language.
 
@@ -256,7 +256,7 @@ no rules axis, no file-size axis, no dep-churn axis, no trend.
 ### CLI surface
 
 ```
-imp review [--since <duration> | --since-last]
+imp health [--since <duration> | --since-last]
            [--max-runs N]
            [--dry-run]
 ```
@@ -502,7 +502,7 @@ coverage, convergence, stopping — copied from `research-fs.md`).
    drop <80. Score retained in `trace.jsonl`, never in the report.
 8. Tag (`EvidenceTagger`): compute evidence tags for each survivor.
    Two-zone assignment is mechanical from tag set.
-9. Write report (`ReportWriter`): `imp/reviews/<YYYY-MM-DD>.md`.
+9. Write report (`ReportWriter`): `imp/health/<YYYY-MM-DD>.md`.
 10. Update watermark (`Watermark.Write(headSha)`) **only on full
     completion** — all planned runs executed, report assembled. If
     `--max-runs` cut the run short, leave the watermark where it
@@ -597,4 +597,4 @@ complex:
   through over weeks. Different report shape, different lifecycle.
 
 Worth its own plan when we get there. Likely composes with
-`project-migrate` rather than living inside `imp review`.
+`project-migrate` rather than living inside `imp health`.

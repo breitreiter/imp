@@ -1,4 +1,4 @@
-namespace Imp.Review;
+namespace Imp.Health;
 
 // Walks the review window's diff and returns the filtered set of touched .cs
 // files (plans/review-mode.md, FileEnumerator.cs slot).
@@ -26,10 +26,10 @@ public static class FileEnumerator
     static readonly string[] ProductionRoots =
     {
         "Build/", "Research/", "Wiki/", "Tools/", "Safety/",
-        "Infrastructure/", "Review/", "Substrate/",
+        "Infrastructure/", "Health/", "Substrate/",
     };
 
-    public static List<TouchedFile> Enumerate(string repoRoot, ReviewWindow window)
+    public static List<TouchedFile> Enumerate(string repoRoot, HealthWindow window)
     {
         var (paths, numstat) = LogTouched(repoRoot, window);
 
@@ -57,7 +57,7 @@ public static class FileEnumerator
     }
 
     static (List<string> Paths, Dictionary<string, (int Added, int Deleted)> Numstat) LogTouched(
-        string repoRoot, ReviewWindow window)
+        string repoRoot, HealthWindow window)
     {
         // git log --numstat collapses adds/dels per file across the window;
         // we sum them via the post-processed dictionary.

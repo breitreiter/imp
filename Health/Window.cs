@@ -1,4 +1,4 @@
-namespace Imp.Review;
+namespace Imp.Health;
 
 // Resolves the review window — the commit range whose diff feeds the per-file
 // axes. Two input modes:
@@ -11,7 +11,7 @@ namespace Imp.Review;
 //     minimal report and advances the watermark anyway.
 //   - Missing watermark on first run: behave as "24h" from HEAD.
 
-public sealed record ReviewWindow(
+public sealed record HealthWindow(
     string HeadSha,
     string? FromSha,         // null when DurationHint is set (no concrete watermark)
     string? DurationHint,    // e.g., "24 hours ago"; null when FromSha is set
@@ -21,7 +21,7 @@ public sealed record ReviewWindow(
 
 public static class Window
 {
-    public static ReviewWindow Resolve(string repoRoot, string? sinceFlag, bool sinceLast)
+    public static HealthWindow Resolve(string repoRoot, string? sinceFlag, bool sinceLast)
     {
         var head = GitCommand.HeadSha(repoRoot)
             ?? throw new InvalidOperationException(
@@ -50,10 +50,10 @@ public static class Window
         return FromDuration(head, "24h", warning: null);
     }
 
-    static ReviewWindow FromSha(string head, string fromSha)
+    static HealthWindow FromSha(string head, string fromSha)
     {
         var empty = fromSha == head;
-        return new ReviewWindow(
+        return new HealthWindow(
             HeadSha: head,
             FromSha: fromSha,
             DurationHint: null,
@@ -64,10 +64,10 @@ public static class Window
             WarningMessage: null);
     }
 
-    static ReviewWindow FromDuration(string head, string flag, string? warning)
+    static HealthWindow FromDuration(string head, string flag, string? warning)
     {
         var asGitSince = TranslateDuration(flag);
-        return new ReviewWindow(
+        return new HealthWindow(
             HeadSha: head,
             FromSha: null,
             DurationHint: asGitSince,

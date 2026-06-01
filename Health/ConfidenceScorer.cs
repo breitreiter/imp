@@ -2,7 +2,7 @@ using Microsoft.Extensions.AI;
 using Imp.Infrastructure;
 using Imp.Research;
 
-namespace Imp.Review;
+namespace Imp.Health;
 
 // Internal-only confidence filter. Score never reaches the report
 // (plans/review-mode.md — surfacing an integer invites anchoring).
