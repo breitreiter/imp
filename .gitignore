@@ -9,3 +9,4 @@ appsettings.local.json
 imp.imp-proposals/
 .imp/
 imp/health/
+imp/_meta/health-watermark

@@ -41,7 +41,7 @@ Non-goals: replacing linters; gating commits; auto-applying fixes.
 ## Cadence and trigger
 
 - New subcommand: `imp health [--since 24h | --since-last]`.
-- Persists a watermark at `imp/_meta/review-watermark` (last reviewed
+- Persists a watermark at `imp/_meta/health-watermark` (last reviewed
   commit SHA) so reruns are idempotent.
 - Nightly trigger via systemd timer or the `/schedule` skill running
   `imp health --since-last`.
@@ -270,14 +270,14 @@ imp health [--since <duration> | --since-last]
   Resolves the calibration open-question in v1 — we'll want this
   immediately for tuning pre-filter thresholds.
 
-### Folder layout — carve `Review/` (`Imp.Review`) from day one
+### Folder layout — carve `Health/` (`Imp.Health`) from day one
 
 v1 already has more files than a flat top-level can hold cleanly
 ([[feedback_layout]]):
 
-- `Review/ReviewCommand.cs` — CLI dispatch + flag parsing.
-- `Review/ReviewOrchestrator.cs` — pipeline driver (steps below).
-- `Review/Window.cs` — `--since` / watermark resolution to a SHA range.
+- CLI dispatch + flag parsing lives in `Program.cs` (`RunHealth`).
+- `Health/HealthOrchestrator.cs` — pipeline driver (steps below).
+- `Health/Window.cs` — `--since` / watermark resolution to a SHA range.
   Edge cases:
   - Watermark SHA unreachable (force-push/rebase on main): warn,
     fall back to `--since 24h` from HEAD. Don't fail.
@@ -287,7 +287,7 @@ v1 already has more files than a flat top-level can hold cleanly
   - Missing watermark on first run: behave as `--since 24h`.
   - Merge commits: include touched files. Per-file diff across the
     window is what matters; commit graph shape is irrelevant.
-- `Review/FileEnumerator.cs` — `git log --name-only` →
+- `Health/FileEnumerator.cs` — `git log --name-only` →
   filtered touched-path set. v1 filter:
   - Include only `*.cs`.
   - Drop deleted files (no current content to review).
@@ -297,18 +297,18 @@ v1 already has more files than a flat top-level can hold cleanly
     no-op until tests exist — costs nothing, ready when they appear.
   - Non-`.cs` paths (Prompts, plans, csproj, json) skip per-file
     axes entirely in v1. Prompt-drift is uncaught; acceptable.
-- `Review/PrePass.cs` — runs `dotnet build` + parses Roslyn
+- `Health/PrePass.cs` — runs `dotnet build` + parses Roslyn
   diagnostics, runs `dotnet format --verify-no-changes`. Produces
   per-file diagnostic lists. Builds in a **fresh worktree at
   window-head SHA**, thrown away after — reuses `Build/`'s
   worktree machinery. Determinism over WIP-pickup: running `imp
   review` with uncommitted changes in the working tree does not
   poison the SARIF.
-- `Review/AxisPlanner.cs` — pre-filter: which axes fire on each
+- `Health/AxisPlanner.cs` — pre-filter: which axes fire on each
   file. Pure function over (path, size, diff-size). Same code feeds
   `--dry-run` and the real dispatch. v1 rules:
   - *Production code* = `.cs` files under `Build/`, `Research/`,
-    `Wiki/`, `Tools/`, `Safety/`, `Infrastructure/`, `Review/`,
+    `Wiki/`, `Tools/`, `Safety/`, `Infrastructure/`, `Health/`,
     or the repo root.
   - Bug-scan (axis 1): fires on any ≥1-line code change to a
     production-code file. No size floor — off-by-ones live in
@@ -319,11 +319,11 @@ v1 already has more files than a flat top-level can hold cleanly
     >50 lines.
   - Untested (axis 6): cross-cutting, planned once at the run
     level, not per file.
-- `Review/EvidenceTagger.cs` — given a finding (file:line + source
+- `Health/EvidenceTagger.cs` — given a finding (file:line + source
   axis), computes tags by checking pre-pass overlap, multi-axis
   hits, etc. Pure function over collected findings.
-- `Review/ReportWriter.cs` — assembles the two-zone markdown.
-- `Review/Watermark.cs` — read/write `imp/_meta/review-watermark`.
+- `Health/ReportWriter.cs` — assembles the two-zone markdown.
+- `Health/Watermark.cs` — read/write `imp/_meta/health-watermark`.
 
 ### Modes to register in `Research/Modes.cs`
 
@@ -484,7 +484,7 @@ coverage, convergence, stopping — copied from `research-fs.md`).
 
 ### Orchestrator pipeline
 
-`ReviewOrchestrator.RunAsync(opts)` executes:
+`HealthOrchestrator.RunAsync(opts)` executes:
 
 1. Resolve window (`Window`): SHA range + window timestamps.
 2. Enumerate touched files (`FileEnumerator`): unique paths,
