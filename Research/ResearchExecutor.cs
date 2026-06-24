@@ -22,6 +22,13 @@ public static class ResearchExecutor
     const int ToolBudgetDefault = 60;
     const int MaxOutputTokensDefault = 16384;
 
+    // When tool-call consumption crosses this fraction of the budget, inject a
+    // one-time directive telling the model to stop searching and call
+    // finish_research. The existing no-tool-call nudge only fires when the model
+    // stops on its own; a model that keeps grepping toward the wall never sees it
+    // and gets cut off mid-stride with BlockedCategory.Abandon. This catches that.
+    const double BudgetWarnFraction = 0.85;
+
     public sealed record RunOutcome(
         ResearchReport? Report,
         TerminalState Terminal,
@@ -73,6 +80,7 @@ public static class ResearchExecutor
         long tokensOut = 0;
         int turns = 0;
         int toolCalls = 0;
+        bool budgetWarned = false;
         TerminalState terminal = TerminalState.Failure;
         BlockedQuestion? blocked = null;
 
@@ -97,6 +105,14 @@ public static class ResearchExecutor
                         $"Tool-call budget ({toolBudget}) exhausted before finish_research was called.",
                         null);
                     break;
+                }
+
+                if (!budgetWarned && state.Captured is null
+                    && toolCalls >= (int)(toolBudget * BudgetWarnFraction))
+                {
+                    history.Add(new ChatMessage(ChatRole.User,
+                        $"Budget check: you have used {toolCalls} of {toolBudget} tool calls. Stop searching now and call finish_research with your best-supported findings. A partial-but-cited report beats exhausting the budget and returning nothing."));
+                    budgetWarned = true;
                 }
 
                 turns++;

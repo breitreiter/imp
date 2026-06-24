@@ -10,6 +10,14 @@ namespace Imp.Research;
 
 public static class ResearchTools
 {
+    // Output-compactness caps. The whole point of research mode is to spare the
+    // parent from spelunking the repo itself, so the report it gets back must
+    // not re-bloat its context. These are soft caps applied deterministically
+    // at capture (trim/truncate, not reject) so a slightly-over report still
+    // lands instead of risking a retry that times out into no report at all.
+    const int MaxExcerptChars = 1200;        // ~15-20 lines; longer excerpts are truncated
+    const int MaxCitationsPerFinding = 6;    // extra citations beyond this are dropped
+
     // The finish_research factory, referenced by every ModeDefinition's
     // FinishToolFactory. Closes over the per-run ResearchState so the tool
     // can capture the validated input and signal the loop to terminate.
@@ -42,6 +50,8 @@ public static class ResearchTools
                     FollowUps: follow_ups,
                     BlockedQuestions: blocked_questions);
 
+                input = NormalizeOutput(input);
+
                 var error = Validate(input);
                 if (error is not null)
                     return $"ERROR: finish_research input rejected — {error}. Adjust and call again.";
@@ -66,6 +76,11 @@ public static class ResearchTools
                 Excerpts make findings auditable without re-fetching — the parent
                 agent verifies your claims from the report alone, no round-trip.
                 Quote enough text that the citation stands on its own.
+
+                Keep it compact — the parent reads the whole report. A finding
+                keeps at most its first few citations and over-long excerpts are
+                truncated, so lead with the load-bearing ones and quote tight
+                ranges (3-10 lines), not whole files.
                 """);
 
     // Finish-tool for the review-confidence pass. Different shape from
@@ -108,6 +123,41 @@ public static class ResearchTools
 
                 The justification is one sentence — kept for trace.jsonl, not shown to the parent.
                 """);
+
+    // Deterministically trims the report to the compactness caps before it is
+    // captured: drops citations past the per-finding limit (keeping the first,
+    // which the model lists strongest-first) and truncates over-long excerpts.
+    // Runs before Validate, so the trimmed set is what gets contract-checked —
+    // truncation only shortens non-empty excerpts, never empties them.
+    static FinishResearchInput NormalizeOutput(FinishResearchInput input)
+    {
+        if (input.Findings is null || input.Findings.Count == 0) return input;
+
+        var findings = input.Findings.Select(f =>
+        {
+            var citations = f.Citations is { } cs ? cs : (IReadOnlyList<Citation>)Array.Empty<Citation>();
+            var trimmed = citations
+                .Take(MaxCitationsPerFinding)
+                .Select(c =>
+                {
+                    var excerpts = c.Excerpts is { } xs ? xs : (IReadOnlyList<string>)Array.Empty<string>();
+                    return c with { Excerpts = excerpts.Select(TruncateExcerpt).ToList() };
+                })
+                .ToList();
+            return f with { Citations = trimmed };
+        }).ToList();
+
+        return input with { Findings = findings };
+    }
+
+    static string TruncateExcerpt(string excerpt)
+    {
+        if (string.IsNullOrEmpty(excerpt) || excerpt.Length <= MaxExcerptChars)
+            return excerpt;
+        return string.Concat(
+            excerpt.AsSpan(0, MaxExcerptChars),
+            "\n… [truncated by imp — cite a narrower line range]");
+    }
 
     static string? Validate(FinishResearchInput input)
     {
