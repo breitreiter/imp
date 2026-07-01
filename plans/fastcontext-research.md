@@ -294,6 +294,51 @@ composes with the citation-path signal the consumer already reads.
 lowered fraction) to validate their constants — the first-trace set was
 too easy to trigger either. R-023 used 21 of 60 calls, same story.
 
+## Budget-stressing run (2026-07-01, R-024)
+
+Model swapped to **GLM-4.5-Air** (Q6_K, llama.cpp on the Strix box) via
+a new local `GLM` provider (`Infrastructure/Providers.cs` reuses the
+Qwen OpenAI-compatible client shape). To make the phase-2 warn reachable
+mid-exploration — the plan's documented "lowered fraction" fallback,
+since real questions converge well under 60 — `Research:ToolBudget` was
+temporarily set to **20** (warn at 17). Question was a deliberately
+sprawling "catalog every CLI subcommand with per-command flags and
+citations."
+
+**Phase 2 — validated.** Reconstructing the trace turn-by-turn: tool
+calls arrive in per-turn batches (fan-out), and the warn check runs only
+at turn boundaries. At turn 8's start the cumulative count hit exactly
+**17 (85% of 20)** → the directive injected → the model's next and only
+action was `finish_research`, terminating `success`. Its
+`blocked_questions` entry consciously records stopping short ("remaining
+20 subcommands not yet analyzed") — a partial-but-cited report, exactly
+the intended behavior instead of grinding to the hard cap and
+`Abandon`. The mechanism works.
+
+**Observability gap (new finding).** The warn directive is only
+`history.Add`-ed (ResearchExecutor.cs:113) — it is written to **neither
+`trace.jsonl` nor `transcript.md`**. Both artifacts are turn/tool-call
+oriented and drop injected steering messages (the no-tool nudge has the
+same problem). So from the archive alone you *cannot see* that the warn
+fired — I had to infer it from the call-count crossing the threshold.
+This directly undercuts the plan's own goal of "tune the threshold from
+observed traces." **Recommend:** emit a `budget_warn` event (and a
+`nudge` event) to `trace.jsonl` when injected. Small TraceWriter
+addition; not yet done.
+
+**Phase 3 — still not exercised, and likely won't be on real output.**
+GLM produced 1 citation per finding with short excerpts (R-023's max was
+3/finding, 279 chars). The per-finding citation cap (`MaxCitationsPerFinding
+= 6`) only trips when a *single claim* needs >6 distinct-location
+citations — an unusual shape; models treat a contiguous code block as
+one citation (R-024 cited the entire 29-line dispatch switch as a single
+excerpt). The excerpt-length cap (`MaxExcerptChars = 1200`) similarly
+never approached. Three real runs now (R-023, R-024, plus the first-trace
+set) show output stays comfortably under both. **The caps are insurance
+against a failure mode that hasn't occurred.** The right validation for a
+deterministic string trim is a unit test over `NormalizeOutput`, not
+coaxing a model into bloat — folds into `plans/unit-tests.md`.
+
 ## Implementation order
 
 1. **Phase 1** — ship first, observe traces. Highest leverage, ~free.

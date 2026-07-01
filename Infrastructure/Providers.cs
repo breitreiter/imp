@@ -37,6 +37,9 @@ public static class Providers
             "anthropic" => CreateAnthropic(section),
             "gemini" => CreateGemini(section),
             "qwen" => CreateQwen(section),
+            // GLM (and any other model served over a local OpenAI-compatible
+            // endpoint, e.g. llama.cpp) uses the same client shape as Qwen.
+            "glm" => CreateQwen(section),
             _ => throw new InvalidOperationException($"Unknown provider: {providerName}"),
         };
     }
