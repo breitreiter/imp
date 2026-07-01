@@ -204,6 +204,96 @@ citations/finding ever too tight? Does the parallel-sweep instruction
 actually change first-turn behavior on codex-mini, or does it ignore it?
 Read `trace.jsonl` from a few runs before adjusting constants.
 
+## First traces (2026-07-01)
+
+Ran five representative fs-mode questions against **codex-mini**
+(`--provider AzureFoundry --archive`), archived at
+`imp.researches/R-017`–`R-021`. All five succeeded; ~$0.23, ~7 min
+total. Consumer eval by Opus (the real client) plus a repo-less Sonnet
+sub-agent fed only the reports.
+
+**Phase 1 — validated, working.** The plan's headline open question
+("does codex-mini honor the parallel-sweep instruction, or ignore
+it?") is answered **yes, every time**. Turn one of all five runs was a
+broad parallel sweep (`list_dir` + N greps): fan-out of 4 / 4 / 8 / 5 /
+5 calls. One run also batched an 8-way parallel `read_file`. Highest-
+leverage change, confirmed cheap and effective.
+
+**Phase 2 — shipped but not exercised.** The 85% directive fires at 51
+of 60 calls. The busiest run used **23**; even the deliberately-broad
+mode-inventory question hit only 17. codex-mini terminates far more
+efficiently than the budget assumes, so `BudgetWarnFraction = 0.85`
+remains **unvalidated** — no run approached it. To test it, need a
+genuinely sprawling question or a temporarily lowered fraction.
+
+**Phase 3 — shipped but not exercised.** Reports came in naturally
+compact (max 3 citations/finding, longest excerpt 279 chars; caps are 6
+and ~1200). No trim or truncation marker fired anywhere. The caps are
+correct-by-construction but **unproven** on real output for the same
+reason as Phase 2.
+
+**Correctness — 4/5, one instructive miss.** Q1 (provider precedence),
+Q2 (`--archive`), Q4 (safety gates), Q5 (MCP→CLI rewrite) were all
+correct, well-cited, appropriately confident. Notably Q2 was the exact
+question that made qwen hallucinate the flag out of existence
+(`TODO.md` "research mode bias toward substrate over source") — on
+codex-mini it read `Program.cs` and answered correctly, so that
+regression did **not** reproduce here.
+
+The miss was Q3 ("inventory every research mode"): the model read only
+`plans/research-mode.md` (a design doc) and reported "imp ships **web +
+fs**, two modes" at `high` confidence. Ground truth from `Modes.cs`:
+**five** modes registered — `fs`, `wiki`, `review-bug`,
+`review-simplify-comments`, `review-untested` — and **no web mode**
+(web exists only as an enum comment). This is the same
+substrate/doc-over-source foot-gun, in a new costume: not a
+substrate-vs-source *scoping* error but a design-doc-as-shipped-fact
+error. Phase 1's fan-out did not prevent it. The tell was in the report
+itself: `coverage.not_explored` listed `Research/Modes.cs` — it knew it
+hadn't read the source of truth and finished `high` anyway.
+
+**Consumer safety (Sonnet, repo-less).** Given only the five reports,
+Sonnet independently flagged Q3 as most likely to mislead, citing the
+exact signal — every finding pointed at a plan doc, `Modes.cs`
+unexplored, "the report contradicting its own confidence rating." So
+the coverage/citation block *is* the safety rail that lets a careful
+downstream reader distrust a confidently-wrong synthesis. Two caveats:
+(1) the `synthesis` field itself carries no hedge, so a reader who skims
+only the synthesis is still misled; (2) Sonnet under-trusted the
+*correct* reports too (single-citation answers read as risky regardless
+of whether the citation was code or doc) — the discriminating signal
+lives in the citation *path*, not the confidence field.
+
+**Follow-on shipped (this commit):** source-of-truth discipline added
+to `Prompts/research-fs.md` — a "answer code questions from code" step
+in *How to research* and a Confidence rule capping doc-only claims about
+code behavior at `medium`. Directly targets the Q3 failure mode;
+composes with the citation-path signal the consumer already reads.
+
+**Q3 re-run — validated (R-023).** Same question, same setup
+(codex-mini via `--provider AzureFoundry --archive`), 21 tool calls,
+~$0.14. The nudge changed behavior exactly as intended:
+
+- **Read `Research/Modes.cs` this time** — moved from `not_explored`
+  (R-019) into `explored`. The "answer code questions from code" step
+  drove it to the source of truth.
+- **Correct synthesis:** "five built-in research modes — fs, wiki,
+  review-bug, review-simplify-comments, review-untested," cited to
+  `Modes.cs` at `high`. The R-019 "web + fs, two modes" error did not
+  reproduce.
+- **Doc claim properly demoted, not dropped:** the plan-doc "web + fs"
+  statement survives as a *separate* finding at `medium` (the exact
+  cap the new Confidence rule mandates), framed as "The design plan
+  *specifies*" — intent, not shipped fact.
+- **Bonus:** it opened a `conflicts` entry reconciling doc-vs-code and
+  resolved that `Modes.cs` is authoritative for shipped modes. The
+  source-of-truth framing gave it the vocabulary to name the drift
+  rather than pick a side blindly.
+
+**Still open:** Phases 2 and 3 need one budget-stressing run (or a
+lowered fraction) to validate their constants — the first-trace set was
+too easy to trigger either. R-023 used 21 of 60 calls, same story.
+
 ## Implementation order
 
 1. **Phase 1** — ship first, observe traces. Highest leverage, ~free.
