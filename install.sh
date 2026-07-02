@@ -5,7 +5,7 @@
 #   ~/.local/share/imp/        — full build output (apphost + imp.dll + deps + content)
 #   ~/.local/bin/imp           — symlink to the apphost above
 #
-# The build output is framework-dependent: the .NET 8 runtime must be
+# The build output is framework-dependent: the .NET 10 runtime must be
 # installed on the machine. Re-run after any code change to refresh the
 # on-PATH binary (a plain `dotnet build` only updates the repo's bin/,
 # not the installed copy).
@@ -21,7 +21,7 @@ cd "$SCRIPT_DIR"
 
 DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/imp"
 BIN_DIR="$HOME/.local/bin"
-OUT_DIR="bin/$CONFIG/net8.0"
+OUT_DIR="bin/$CONFIG/net10.0"
 
 echo "==> building imp ($CONFIG)"
 dotnet build -c "$CONFIG" --nologo
