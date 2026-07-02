@@ -110,8 +110,10 @@ public static class ResearchExecutor
                 if (!budgetWarned && state.Captured is null
                     && toolCalls >= (int)(toolBudget * BudgetWarnFraction))
                 {
-                    history.Add(new ChatMessage(ChatRole.User,
-                        $"Budget check: you have used {toolCalls} of {toolBudget} tool calls. Stop searching now and call finish_research with your best-supported findings. A partial-but-cited report beats exhausting the budget and returning nothing."));
+                    var directive =
+                        $"Budget check: you have used {toolCalls} of {toolBudget} tool calls. Stop searching now and call finish_research with your best-supported findings. A partial-but-cited report beats exhausting the budget and returning nothing.";
+                    history.Add(new ChatMessage(ChatRole.User, directive));
+                    trace.WriteDirective("budget_warn", directive, turns, toolCalls, toolBudget);
                     budgetWarned = true;
                 }
 

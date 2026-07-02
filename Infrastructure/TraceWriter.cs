@@ -8,7 +8,7 @@ namespace Imp.Infrastructure;
 // Append-only JSONL sidecar. One line per event, flushed immediately so an
 // ungraceful exit still preserves what we observed up to the crash.
 //
-// Event types: start | turn | tool_call | end
+// Event types: start | turn | tool_call | directive | end
 //
 // Design rule: the worktree carries file content; the trace carries signal.
 // Tool results aren't logged verbatim (the worktree diff tells that story).
@@ -97,6 +97,22 @@ public sealed class TraceWriter : IDisposable
             error,
         });
     }
+
+    // A steering message the executor injects into the conversation (not a
+    // model turn or tool call) — e.g. the budget-proximity warn. Recorded so a
+    // trace reader can see it fired and at what call count, which is exactly
+    // what tuning BudgetWarnFraction from observed traces needs.
+    public void WriteDirective(string kind, string message, int afterTurn, int toolCalls, int toolBudget)
+        => Write(new
+        {
+            type = "directive",
+            timestamp = DateTime.UtcNow,
+            kind,
+            after_turn = afterTurn,
+            tool_calls = toolCalls,
+            tool_budget = toolBudget,
+            message = TruncateText(message, TurnTextPreviewChars),
+        });
 
     public void WriteEnd(string terminalState, int toolCallCount, int turnCount)
         => Write(new

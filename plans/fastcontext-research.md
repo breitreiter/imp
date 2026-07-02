@@ -322,9 +322,13 @@ oriented and drop injected steering messages (the no-tool nudge has the
 same problem). So from the archive alone you *cannot see* that the warn
 fired — I had to infer it from the call-count crossing the threshold.
 This directly undercuts the plan's own goal of "tune the threshold from
-observed traces." **Recommend:** emit a `budget_warn` event (and a
-`nudge` event) to `trace.jsonl` when injected. Small TraceWriter
-addition; not yet done.
+observed traces." **Fixed:** `TraceWriter.WriteDirective` emits a
+`directive` event (`kind: "budget_warn"`, with `tool_calls` /
+`tool_budget` / `after_turn`) to `trace.jsonl` when the warn injects.
+Confirmed in R-025 (codex-mini, budget 20): the event lands at
+`tool_calls: 17`. The warn is now directly observable for threshold
+tuning. The no-tool `nudge` shares the gap and can reuse the same
+method — left for when it next matters.
 
 **Phase 3 — still not exercised, and likely won't be on real output.**
 GLM produced 1 citation per finding with short excerpts (R-023's max was
