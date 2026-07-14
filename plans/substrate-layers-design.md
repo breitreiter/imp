@@ -58,6 +58,15 @@ Properties:
 Why: solves cold-start orientation (Aider repo-map is the proven
 shape) and exact-symbol queries (SCIP/stack-graphs idioms).
 
+> **Before building Layer 0, read `plans/graphify-borrow.md`.**
+> Graphify (Graphify-Labs) is close to a productized version of this
+> layer — deterministic tree-sitter/AST symbol graph with cross-file
+> `calls`/`imports`/`inherits` edges and `EXTRACTED`/`INFERRED`
+> confidence tags. The borrow plan proposes a Roslyn-first, C#-only
+> first cut of exactly this cache and how research mode would query
+> it. Don't build Layer 0 from this snapshot alone without folding in
+> that design work.
+
 ## Layer 1 — rationale
 
 What: small markdown files, one claim each, anchored to code via
